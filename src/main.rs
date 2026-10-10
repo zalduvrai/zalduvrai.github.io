@@ -1,10 +1,10 @@
-#![allow(clippy::too_many_lines, clippy::cognitive_complexity)]
+#![allow(clippy::too_many_lines, reason = "annoying")]
 
 use std::{collections::HashMap, fmt::Debug, fs, sync::LazyLock};
 
 use htmlentity::entity::{ICodedDataTrait as _, decode};
 use itertools::Itertools as _;
-use quick_xml::{Reader, events::Event};
+use quick_xml::{Reader, XmlVersion::Implicit1_0, events::Event};
 use regex::Regex;
 use reqwest::blocking::Client;
 use serde::Serialize;
@@ -49,10 +49,12 @@ impl Entry {
 }
 impl Def {
     const fn new() -> Self { Self { pos: String::new(), body: String::new() } }
+
     fn is_empty(&self) -> bool { self == &Self::new() }
 }
 impl Deriv {
     const fn new() -> Self { Self { head: String::new(), pos: String::new(), body: String::new() } }
+
     fn is_empty(&self) -> bool { self == &Self::new() }
 }
 
@@ -121,7 +123,7 @@ fn main() {
         .unwrap();
     println!("cleaning up");
     let current = &current
-        [(current.find("\n<p>\n").unwrap() + 1)..current.find("\n\n</div>").unwrap()]
+        [(current.find("\n<p>\n").unwrap() + 1) .. current.find("\n\n</div>").unwrap()]
         // html fixing time
         .replace("<br>\n", "<br/>\n")
         .lines()
@@ -172,22 +174,22 @@ fn main() {
                 break 'evts;
             }
             Ok(Event::Start(e)) => {
-                let tag = String::from_utf8(e.name().as_ref().to_vec()).unwrap();
+                let tag = e.name().as_ref().to_string();
                 let attrs = e
                     .html_attributes()
                     .map(|attr| attr.unwrap())
                     .map(|attr| {
                         (
-                            String::from_utf8(attr.key.as_ref().to_vec()).unwrap(),
-                            attr.unescape_value().unwrap().to_string(),
+                            attr.key.as_ref().to_string(),
+                            attr.normalized_value(Implicit1_0).unwrap().to_string(),
                         )
                     })
                     .collect::<HashMap<_, _>>();
                 inside.push(Open { tag, attrs });
             }
             Ok(Event::End(e)) => {
-                let tag = String::from_utf8(e.name().as_ref().to_vec()).unwrap();
-                if tag.as_str() == "p" {
+                let tag = e.name().into_inner();
+                if tag == "p" {
                     match state {
                         State::None => {}
                         State::Def => {
@@ -224,7 +226,7 @@ fn main() {
                 }
             }
             Ok(Event::Text(e)) => {
-                let text = String::from_utf8(e.into_inner().into_owned()).unwrap();
+                let text = e.into_inner().into_owned();
                 if state == State::None && text.trim().is_empty() {
                     continue 'evts;
                 }
@@ -237,7 +239,8 @@ fn main() {
                     }
                     ("b", _) => {
                         if state == State::None {
-                            // some equivalent furdjifoa mention each other in the <b> but after the
+                            // some equivalent furdjifoa mention each other in
+                            // the <b> but after the
                             // <a> containing their `head`
                             continue;
                         }
@@ -256,7 +259,7 @@ fn main() {
                             } else {
                                 if content.starts_with('U') {
                                     state = State::Def;
-                                    entry.used_in = content[9..]
+                                    entry.used_in = content[9 ..]
                                         .split("; ")
                                         .map(std::string::ToString::to_string)
                                         .collect_vec();
@@ -264,8 +267,8 @@ fn main() {
                                 }
                                 if content.starts_with('(') {
                                     state = State::Def;
-                                    let pos = &content[1..content.find(')').unwrap()];
-                                    let rest = &content[content.find(") ").unwrap() + 2..];
+                                    let pos = &content[1 .. content.find(')').unwrap()];
+                                    let rest = &content[content.find(") ").unwrap() + 2 ..];
                                     append!(state; pos, pos; body, rest);
                                 }
                             }
@@ -273,17 +276,17 @@ fn main() {
                             && deriv.pos.is_empty()
                             && text.starts_with(" (")
                         {
-                            let pos = &text[2..text.find(") ").unwrap()];
-                            let rest = &text[text.find(") ").unwrap() + 2..];
+                            let pos = &text[2 .. text.find(") ").unwrap()];
+                            let rest = &text[text.find(") ").unwrap() + 2 ..];
                             append!(state; pos, pos; body, rest);
                         } else {
                             append!(state; body, &text);
                         }
                         let frame =
                             FRAME.captures(&text).map_or("[]", |fr| fr.get(0).unwrap().as_str());
-                        let frame = &frame[1..frame.len() - 1];
+                        let frame = &frame[1 .. frame.len() - 1];
                         if !frame.is_empty() && state == State::Def {
-                            def.body = def.body[..def.body.len() - frame.len() - 2].to_string();
+                            def.body = def.body[.. def.body.len() - frame.len() - 2].to_string();
                         }
                     }
                     ("em", attrs) => match attrs["class"].as_str() {
@@ -297,7 +300,7 @@ fn main() {
                                     "etymology should end with `&gt;` but does not:\n{text}"
                                 );
                                 entry.etym = deëntity(
-                                    &text[4..text.len() - 4].to_string().replace("&nbsp;", ""),
+                                    &text[4 .. text.len() - 4].to_string().replace("&nbsp;", ""),
                                 );
                             } else {
                                 entry.djifoa =

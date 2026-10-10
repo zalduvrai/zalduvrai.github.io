@@ -28,9 +28,11 @@ function search(q) {
   let res = [];
   for (const entry of dict) {
     if (excluded.has(entry)) continue;
+    let head = entry.head.toLowerCase();
     let scores = terms.filter(t => t.op != "order").map(({ op, orig, value }) => {
       // 5: head
-      if (op == "=" && RegExp("^(?:" + value + ")$", "iu").test(entry.head) || value == entry.head) return 7;
+      if (op == "=" && RegExp("^(?:" + value + ")$", "iu").test(entry.head)) return 7;
+      if (!op && value == head) return 7;
       if (op == "~" && RegExp(value, "iu").test(entry.head)) return 6;
       // 3: body
       if (!op) {
@@ -38,8 +40,8 @@ function search(q) {
         if (entry.defs.some(def => RegExp(`^[BCDFGJKJKNPSV] ((is|are) (an? |the |an?/the )?)?${sanitized}(e?s|\\W|$)`, "iu").test(def.body) || def.body.startsWith(sanitized))) return 5;
         if (entry.defs.some(def => def.body.toLowerCase().includes(value))) return 4;
         if (entry.derivs && entry.derivs.some(deriv => deriv.body.toLowerCase().includes(value))) return 3;
-        if (entry.head.includes(value)) return 2;
-        if (entry.head.startsWith(value)) return 1;
+        if (head.startsWith(value)) return 2;
+        if (head.includes(value)) return 1;
       }
       // other
       if (op == "!") return 0.1;
